@@ -13,48 +13,57 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 @Configuration
 public class RedisConfig {
-    // Inject application properties into configuration
+
     @Value("${spring.data.redis.host}")
     private String redisHost;
 
     @Value("${spring.data.redis.port}")
     private Integer redisPort;
 
+    @Value("${spring.data.redis.database}")
+    private Integer redisDatabase;
+
     @Value("${spring.data.redis.username}")
-    private String redisUser;
+    private String redisUsername;
 
     @Value("${spring.data.redis.password}")
     private String redisPassword;
 
-    @Bean
-    public JedisConnectionFactory jedisConnectionFactory() {
+    // Factory method
+    // Bean allows Autowire to inject properties into other files
+    // Springboot has an existing redistemplate
+    @Bean(Util.REDIS_ONE)
+    public RedisTemplate<String, String> createRedis() {
 
-        RedisStandaloneConfiguration redisConfig = new RedisStandaloneConfiguration();
-        // Configure host name and port
-        redisConfig.setHostName(redisHost);
-        redisConfig.setPort(redisPort);
+        RedisStandaloneConfiguration config = new RedisStandaloneConfiguration();
+        config.setHostName(redisHost);
+        config.setPort(redisPort);
+        config.setDatabase(redisDatabase);
 
-        // Configure username and password
-        if (!"NOT_SET".equals(redisUser.trim())) {
-            redisConfig.setUsername(redisUser);
-            redisConfig.setPassword(redisPassword);
+        // Set username and password if present
+        if (redisUsername.trim().length() > 0) {
+            config.setUsername(redisUsername);
+            config.setPassword(redisPassword);
         }
 
-        // Create client config object and set connection
+        // Configure Jedis (driver)
         JedisClientConfiguration jedisClient = JedisClientConfiguration.builder().build();
-        JedisConnectionFactory jedisConnFac = new JedisConnectionFactory(redisConfig, jedisClient);
-        jedisConnFac.afterPropertiesSet();
-        return jedisConnFac;
-    }
 
-    @Bean(Util.REDIS_ONE)
-    public RedisTemplate<String, String> redisTemplate() {
+        JedisConnectionFactory fac = new JedisConnectionFactory(config, jedisClient);
+        fac.afterPropertiesSet();
+
         RedisTemplate<String, String> template = new RedisTemplate<>();
-        template.setConnectionFactory(jedisConnectionFactory());
+        template.setConnectionFactory(fac);
+
+        // Why the need to serialize?
+        // If a database stores information from many programming languages, it is able
+        // to convert the information to a platform netural value for readibility.
         template.setKeySerializer(new StringRedisSerializer());
         template.setValueSerializer(new StringRedisSerializer());
-        
+        template.setHashKeySerializer(new StringRedisSerializer());
+        template.setHashValueSerializer(new StringRedisSerializer());
         template.afterPropertiesSet();
+
         return template;
     }
 }

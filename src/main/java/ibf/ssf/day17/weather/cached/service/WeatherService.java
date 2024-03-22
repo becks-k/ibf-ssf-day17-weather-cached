@@ -3,6 +3,7 @@ package ibf.ssf.day17.weather.cached.service;
 import java.io.StringReader;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,6 +18,7 @@ import ibf.ssf.day17.weather.cached.model.Weather;
 import ibf.ssf.day17.weather.cached.repository.WeatherRepo;
 import jakarta.json.Json;
 import jakarta.json.JsonArray;
+import jakarta.json.JsonArrayBuilder;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonReader;
 
@@ -93,21 +95,27 @@ public class WeatherService {
 
 
     // Create weather data
-    public void createWeatherData(String city, Weather weather) {
-        // Store as JsonObject String
-        weatherRepo.createData(city, weather.toString());
+    public void cacheWeatherData(String city, List<Weather> weather) {
+        JsonArrayBuilder arrayBuilder = Json.createArrayBuilder();
+        for (Weather w : weather) {
+            arrayBuilder.add(w.toString());
+        }
+        weatherRepo.createData(city, arrayBuilder.build().toString());
     }
 
     // Get weather data
     // Data is stored as JsonObject String
     public List<Weather> getWeatherData(String city) {
-        String rawWeather = weatherRepo.getData(city);
+        String rawWeather = weatherRepo.getData(city).get();
         JsonReader reader = Json.createReader(new StringReader(rawWeather));
-        JsonObject data = reader.readObject();
-        Weather weather = new Weather(data.getString("icon"), data.getString("main"), data.getString("description"));
-
-        List<Weather> weatherList = new LinkedList<>();
-        weatherList.add(weather);
+        JsonArray arr = reader.readArray();
+        List<Weather> weatherList = arr.stream()
+            .map(v -> v.asJsonObject())
+            .map(v -> {
+                Weather weather = new Weather(v.getString("icon"), v.getString("main"), v.getString("description"));
+                return weather; 
+            })
+            .toList();
 
         return weatherList;
     }
